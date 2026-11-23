@@ -145,6 +145,20 @@ export async function fetchPool<T extends PoolKind>(
   if (pool.length !== tc) {
     throw new Error(`东方财富 ${label}（${date}）数据不完整：总数 ${tc}，收到 ${pool.length} 条明细`);
   }
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const [index, stock] of pool.entries()) {
+    if (typeof stock?.c !== 'string' || !/^\d{6}$/.test(stock.c) || !Number.isSafeInteger(stock.m) || stock.m < 0) {
+      throw new Error(`东方财富 ${label}（${date}）数据无效：第 ${index + 1} 条明细缺少有效的市场或股票代码`);
+    }
+    // 池的顺序不是唯一性保证，必须使用市场和股票代码共同标识个股。
+    const key = `${stock.m}.${stock.c}`;
+    if (seen.has(key)) duplicates.add(key);
+    seen.add(key);
+  }
+  if (duplicates.size > 0) {
+    throw new Error(`东方财富 ${label}（${date}）数据不完整：总数 ${tc}，仅 ${seen.size} 个唯一标的；重复代码 ${[...duplicates].join('、')}`);
+  }
   if (kind === 'zt') return pool.map(toLimitUp) as never;
   if (kind === 'zb') return pool.map(toBrokenBoard) as never;
   return pool.map(toLimitDown) as never;

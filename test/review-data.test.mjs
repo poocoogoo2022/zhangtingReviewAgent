@@ -42,6 +42,16 @@ test('总数与明细不一致时明确报错，不当成零家', async (t) => {
   await assert.rejects(fetchPool('dt', '20261120'), /跌停池.*总数 58，收到 0 条明细/);
 });
 
+test('总数与条数相同但出现重复标的时拒绝整池，不静默去重', async (t) => {
+  mockFetch(t, () => pool([first, { ...first, hybk: '另一行业' }, second]));
+  await assert.rejects(fetchPool('zt', '20261120'), /涨停池.*总数 3，仅 2 个唯一标的；重复代码 0\.000001/);
+});
+
+test('无法识别明细的股票身份时拒绝整池', async (t) => {
+  mockFetch(t, () => pool([{ ...first, c: '' }]));
+  await assert.rejects(fetchPool('dt', '20261120'), /跌停池.*第 1 条明细缺少有效的市场或股票代码/);
+});
+
 test('接口业务错误与合法空池是两种结果', async (t) => {
   mockFetch(t, (url) => url.pathname === BROKEN
     ? Response.json({ rc: 1, data: null })
