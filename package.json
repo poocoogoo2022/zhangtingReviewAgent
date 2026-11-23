@@ -1,0 +1,25 @@
+{
+  "name": "zhangting-review-agent",
+  "version": "0.1.0",
+  "description": "A 股涨停复盘 Agent：抓取东方财富涨停/炸板/跌停数据，调用 DeepSeek 生成每日复盘报告",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "zt-review": "dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx --env-file=.env src/index.ts",
+    "build": "tsc",
+    "start": "node --env-file=.env dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
