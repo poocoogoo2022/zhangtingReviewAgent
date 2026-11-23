@@ -108,6 +108,8 @@ src/
 
 运行 `npm test` 可离线验证数据口径，无须行情接口或 DeepSeek API Key。
 
+[GitHub Actions CI](.github/workflows/ci.yml) 在分支推送和 Pull Request 时，分别用 Node.js 20 和 24 执行 `npm ci`、`npm test` 和 `npm run demo`。安装依赖需要访问 npm registry；测试和演示不调用行情或模型接口，不需要配置仓库 Secrets。
+
 ## 免责声明
 
 本项目仅供学习与技术研究，不构成任何投资建议。股市有风险，投资需谨慎。
