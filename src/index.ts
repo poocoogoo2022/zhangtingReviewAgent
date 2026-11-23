@@ -101,7 +101,7 @@ async function main() {
     const dir = resolve(args.outDir);
     await mkdir(dir, { recursive: true });
     const file = resolve(dir, `zt-review-${date}.md`);
-    await writeFile(file, `# ${dateFmt} 涨停复盘\n\n${report.trim()}\n`, 'utf8');
+    await writeFile(file, report, 'utf8');
     console.error(`\n\n💾 报告已保存: ${file}`);
   }
 }

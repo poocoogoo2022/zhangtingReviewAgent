@@ -1,23 +1,14 @@
 import type { TradingDayData } from '../data/types.js';
+import { buildMarketFacts, formatPct, formatTradingDate } from './facts.js';
 
-export const SYSTEM_PROMPT = `你是一位专业的 A 股短线交易员，专注涨停板复盘。你的读者是短线打板/接力选手。
-基于用户提供的盘面数据，输出一份涨停复盘报告，要求：
+export const SYSTEM_PROMPT = `你是 A 股盘面复盘助手，负责解读给定数据。程序会在报告中直接展示总览、连板梯队和行业分布；你只写解读，不输出报告标题、统计表或重复列举行业家数与连板家数。需要引用数字时，以已给出的统计为准，不根据明细重新计数。
 
-1. 【市场情绪】用数据说话：涨停/炸板/跌停家数、封板成功率（涨停÷(涨停+炸板)）、昨日涨停今日平均溢价与晋级率，判断情绪周期位置（冰点/修复/发酵/高潮/退潮）并说明依据。
-2. 【连板梯队】梳理最高板与梯队结构（如 5板/3板/2板），点评梯队是否完整、有无断层风险。
-3. 【主线题材】按行业/概念归纳涨停股，找出涨停家数最多的 1-3 条主线，分析其持续性（梯队支撑、首板补充、封板质量）。
-4. 【个股点评】点评最高板、人气核心（封单大、一字板、换手充分等特征），以及风险信号（尾盘回封、多次炸板、缩量加速）。
-5. 【明日策略】给出 2-4 条可执行的观察要点与风险提示，明确仓位建议对应的情绪前提。
+1. 【市场情绪】基于封板、跌停及晋级情况解读盘面，区分数据和判断。单日数据不能证明情绪周期或资金流向时，明确说明。
+2. 【梯队与行业】解读梯队有无断层，分析领先行业是否有高板和首板支撑。东方财富行业标签不是概念题材，不能据此推断概念归属或上涨原因。
+3. 【个股表现】引用可核对的封板时间、炸板次数、成交额、封单或换手率。没有开盘及盘中价格数据，不能仅凭首封时间和零炸板认定一字板；没有历史成交量时，不判断放量或缩量。
+4. 【下一交易日观察】提出待验证的观察点和风险，不给出具体买卖、仓位或收益建议，不将推测写成事实。
 
-风格要求：
-- 专业、直接、有观点，避免空话套话；每个结论都要引用具体数据或个股。
-- 数据缺失时明确注明，不将缺失值视为零，不推测未提供的涨跌幅或平均涨幅。
-- 不做收益承诺，结尾加一句风险提示（股市有风险）。
-- 用 Markdown 输出，小标题用 ##，正文简洁，全文 800-1500 字。`;
-
-function fmtPct(x: number): string {
-  return `${x.toFixed(2)}%`;
-}
+数据缺失时明确注明，不将缺失值视为零，不推测未提供的涨跌幅或平均涨幅。用 Markdown 输出，分节用三级标题（###），结尾加上风险提示。`;
 
 function fmtAmount(x: number): string {
   if (x >= 1e8) return `${(x / 1e8).toFixed(2)}亿`;
@@ -30,44 +21,9 @@ function fmtCap(x: number): string {
 }
 
 /** 把结构化数据渲染成给 LLM 的盘面摘要（Markdown 表格） */
-export function buildMarketSummary(data: TradingDayData): string {
-  const { date, prevDate, limitUp, brokenBoard, limitDown, prevDayPerformance } = data;
-  const d = `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`;
-
-  const lines: string[] = [`# ${d} 盘面数据\n`];
-
-  // 总览
-  const totalBoard = limitUp.length + brokenBoard.length;
-  const sealRate = totalBoard > 0 ? fmtPct((limitUp.length / totalBoard) * 100) : '不适用（无摸板样本）';
-  lines.push(`## 总览
-- 涨停 ${limitUp.length} 家，炸板 ${brokenBoard.length} 家，封板成功率 ${sealRate}
-- 跌停 ${limitDown.length} 家
-- 连板股 ${limitUp.filter((s) => s.consecutiveBoards >= 2).length} 家，最高板 ${
-    Math.max(0, ...limitUp.map((s) => s.consecutiveBoards))
-  } 板`);
-
-  // 晋级来自两个交易日的涨停池；涨跌幅只用可用的复盘日行情。
-  if (prevDate && prevDayPerformance.length > 0) {
-    const valid = prevDayPerformance.flatMap(({ name, todayChangePct }) =>
-      todayChangePct !== null && Number.isFinite(todayChangePct) ? [{ name, change: todayChangePct }] : [],
-    );
-    const promoted = prevDayPerformance.filter((p) => p.promoted).length;
-    const pd = `${prevDate.slice(0, 4)}-${prevDate.slice(4, 6)}-${prevDate.slice(6, 8)}`;
-    lines.push(`\n## 上一交易日（${pd}）涨停股在复盘日的表现
-- 上一交易日涨停 ${prevDayPerformance.length} 只，复盘日再涨停 ${promoted} 只，晋级率 ${fmtPct(
-      (promoted / prevDayPerformance.length) * 100,
-    )}
-- 涨跌幅行情覆盖 ${valid.length}/${prevDayPerformance.length} 只`);
-    if (data.prevDayQuoteWarning) lines.push(`- 行情说明：${data.prevDayQuoteWarning}`);
-    if (valid.length > 0) {
-      const avg = valid.reduce((sum, p) => sum + p.change, 0) / valid.length;
-      const losers = valid.filter((p) => p.change <= -3).map((p) => `${p.name}(${fmtPct(p.change)})`);
-      lines.push(`- 有行情样本的平均涨跌幅：${fmtPct(avg)}`);
-      lines.push(`- 有行情样本中涨跌幅 ≤ -3%：${losers.join('、') || '无'}`);
-    } else {
-      lines.push('- 缺少复盘日涨跌幅，无法计算平均涨跌幅或列出下跌个股');
-    }
-  }
+export function buildMarketSummary(data: TradingDayData, facts = buildMarketFacts(data)): string {
+  const { date, limitUp, brokenBoard, limitDown } = data;
+  const lines = [`# ${formatTradingDate(date)} 盘面数据\n`, facts];
 
   // 涨停明细（按连板数降序，再按封板时间）
   const sorted = [...limitUp].sort(
@@ -78,7 +34,7 @@ export function buildMarketSummary(data: TradingDayData): string {
 |---|---|---|---|---|---|---|---|---|---|---|---|`);
   for (const s of sorted) {
     lines.push(
-      `| ${s.code} | ${s.name} | ${s.consecutiveBoards} | ${s.statsDays}天${s.statsCount}板 | ${s.firstSealTime} | ${s.lastSealTime} | ${s.breakCount} | ${fmtAmount(s.sealFund)} | ${fmtAmount(s.amount)} | ${fmtPct(s.turnoverRate)} | ${fmtCap(s.floatMarketCap)} | ${s.industry} |`,
+      `| ${s.code} | ${s.name} | ${s.consecutiveBoards} | ${s.statsDays}天${s.statsCount}板 | ${s.firstSealTime} | ${s.lastSealTime} | ${s.breakCount} | ${fmtAmount(s.sealFund)} | ${fmtAmount(s.amount)} | ${formatPct(s.turnoverRate)} | ${fmtCap(s.floatMarketCap)} | ${s.industry} |`,
     );
   }
 
@@ -89,7 +45,7 @@ export function buildMarketSummary(data: TradingDayData): string {
 |---|---|---|---|---|---|---|`);
     for (const s of brokenBoard) {
       lines.push(
-        `| ${s.code} | ${s.name} | ${fmtPct(s.changePct)} | ${s.breakCount} | ${fmtAmount(s.amount)} | ${fmtPct(s.turnoverRate)} | ${s.industry} |`,
+        `| ${s.code} | ${s.name} | ${formatPct(s.changePct)} | ${s.breakCount} | ${fmtAmount(s.amount)} | ${formatPct(s.turnoverRate)} | ${s.industry} |`,
       );
     }
   }
@@ -99,7 +55,7 @@ export function buildMarketSummary(data: TradingDayData): string {
     lines.push(`\n## 跌停明细（${limitDown.length} 家）`);
     for (const s of limitDown) {
       lines.push(
-        `- ${s.name}(${s.code}) ${fmtPct(s.changePct)}，成交 ${fmtAmount(s.amount)}，${s.industry}`,
+        `- ${s.name}(${s.code}) ${formatPct(s.changePct)}，成交 ${fmtAmount(s.amount)}，${s.industry}`,
       );
     }
   }
@@ -107,6 +63,6 @@ export function buildMarketSummary(data: TradingDayData): string {
   return lines.join('\n');
 }
 
-export function buildUserPrompt(data: TradingDayData): string {
-  return `以下是 ${data.date} 的 A 股涨停复盘原始数据，请按系统设定输出复盘报告。\n\n${buildMarketSummary(data)}`;
+export function buildUserPrompt(data: TradingDayData, facts = buildMarketFacts(data)): string {
+  return `以下是 ${formatTradingDate(data.date)} 的 A 股复盘统计和明细。请仅撰写解读部分。\n\n${buildMarketSummary(data, facts)}`;
 }
