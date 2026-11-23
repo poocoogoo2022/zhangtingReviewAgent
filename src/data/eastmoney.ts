@@ -17,18 +17,18 @@ const UT = '7eea3edcaed734bea9cbfc24409ed989';
 const PAGE_SIZE = 500;
 const MAX_LOOKBACK_DAYS = 10;
 
-const ENDPOINTS = {
-  zt: 'getTopicZTPool', // 涨停池
-  zb: 'getTopicZBPool', // 炸板池
-  dt: 'getTopicDTPool', // 跌停池
+const POOLS = {
+  zt: { endpoint: 'getTopicZTPool', sort: 'fbt:asc', label: '涨停池' },
+  zb: { endpoint: 'getTopicZBPool', sort: 'fbt:asc', label: '炸板池' },
+  dt: { endpoint: 'getTopicDTPool', sort: 'fund:asc', label: '跌停池' },
 } as const;
 
 // 东财部分 IPv6 节点不稳定（偶发 socket reset），优先走 IPv4
 setDefaultResultOrder('ipv4first');
 
-type PoolKind = keyof typeof ENDPOINTS;
+type PoolKind = keyof typeof POOLS;
 
-async function fetchJson<T>(url: string): Promise<T> {
+async function fetchJson<T>(url: URL): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= 4; attempt++) {
     try {
@@ -40,7 +40,7 @@ async function fetchJson<T>(url: string): Promise<T> {
         },
         signal: AbortSignal.timeout(15_000),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return (await res.json()) as T;
     } catch (err) {
       lastError = err;
@@ -49,7 +49,8 @@ async function fetchJson<T>(url: string): Promise<T> {
       }
     }
   }
-  throw lastError;
+  const detail = lastError instanceof Error ? lastError.message : String(lastError);
+  throw new Error(`东方财富 ${url.hostname}${url.pathname} 请求失败：${detail}`, { cause: lastError });
 }
 
 function sleep(ms: number): Promise<void> {
@@ -125,11 +126,25 @@ export async function fetchPool<T extends PoolKind>(
 ): Promise<
   T extends 'zt' ? LimitUpStock[] : T extends 'zb' ? BrokenBoardStock[] : LimitDownStock[]
 > {
-  const url =
-    `${POOL_BASE}/${ENDPOINTS[kind]}?ut=${UT}&dpt=wz.ztzt` +
-    `&Pageindex=0&pagesize=${PAGE_SIZE}&sort=fbt%3Aasc&date=${date}`;
-  const json = await fetchJson<RawPoolResponse>(url);
-  const pool = json.data?.pool ?? [];
+  const { endpoint, sort, label } = POOLS[kind];
+  const url = new URL(endpoint, `${POOL_BASE}/`);
+  url.search = new URLSearchParams({
+    ut: UT,
+    dpt: 'wz.ztzt',
+    Pageindex: '0',
+    pagesize: String(PAGE_SIZE),
+    sort,
+    date,
+  }).toString();
+  const response = await fetchJson<RawPoolResponse | null>(url);
+  const { rc, data } = response ?? {};
+  if (rc !== 0 || !data || !Number.isSafeInteger(data.tc) || data.tc < 0 || !Array.isArray(data.pool)) {
+    throw new Error(`东方财富 ${label}（${date}）响应无效：未返回有效总数和明细（rc=${rc}）`);
+  }
+  const { pool, tc } = data;
+  if (pool.length !== tc) {
+    throw new Error(`东方财富 ${label}（${date}）数据不完整：总数 ${tc}，收到 ${pool.length} 条明细`);
+  }
   if (kind === 'zt') return pool.map(toLimitUp) as never;
   if (kind === 'zb') return pool.map(toBrokenBoard) as never;
   return pool.map(toLimitDown) as never;
@@ -146,10 +161,14 @@ export async function fetchQuotes(
       .slice(i, i + CHUNK)
       .map((s) => `${s.market}.${s.code}`)
       .join(',');
-    const url = `${QUOTE_URL}?fltt=2&invt=2&fields=f12,f14,f2,f3&secids=${secids}`;
-    const json = await fetchJson<RawQuoteResponse>(url);
-    for (const q of json.data?.diff ?? []) {
-      result.set(q.f12, q.f3);
+    const url = new URL(QUOTE_URL);
+    url.search = new URLSearchParams({ fltt: '2', invt: '2', fields: 'f12,f14,f2,f3', secids }).toString();
+    const json = await fetchJson<RawQuoteResponse | null>(url);
+    if (json?.rc !== 0 || !Array.isArray(json.data?.diff)) {
+      throw new Error('东方财富实时行情未返回有效明细');
+    }
+    for (const q of json.data.diff) {
+      if (typeof q?.f12 === 'string' && Number.isFinite(q.f3)) result.set(q.f12, q.f3);
     }
   }
   return result;
@@ -208,17 +227,27 @@ export async function collectTradingDayData(date: string): Promise<TradingDayDat
     }
   }
 
-  const todaySet = new Set(limitUp.map((s) => s.code));
-  let prevDayPerformance: PrevDayPerformance[] = [];
+  const todaySet = new Set(limitUp.map((s) => `${s.market}.${s.code}`));
+  let quotes = new Map<string, number>();
+  let prevDayQuoteWarning: string | undefined;
   if (prevPool.length > 0) {
-    const quotes = await fetchQuotes(prevPool.map((s) => ({ code: s.code, market: s.market })));
-    prevDayPerformance = prevPool.map((s) => ({
-      code: s.code,
-      name: s.name,
-      todayChangePct: quotes.get(s.code) ?? Number.NaN,
-      promoted: todaySet.has(s.code),
-    }));
+    if (date !== todayCN()) {
+      prevDayQuoteWarning = '历史复盘不使用实时行情；暂无可用的复盘日涨跌幅';
+    } else {
+      try {
+        quotes = await fetchQuotes(prevPool);
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        prevDayQuoteWarning = `复盘日实时行情不可用：${detail}`;
+      }
+    }
   }
+  const prevDayPerformance: PrevDayPerformance[] = prevPool.map((s) => ({
+    code: s.code,
+    name: s.name,
+    todayChangePct: quotes.get(s.code) ?? null,
+    promoted: todaySet.has(`${s.market}.${s.code}`),
+  }));
 
-  return { date, prevDate, limitUp, brokenBoard, limitDown, prevDayPerformance };
+  return { date, prevDate, limitUp, brokenBoard, limitDown, prevDayPerformance, prevDayQuoteWarning };
 }

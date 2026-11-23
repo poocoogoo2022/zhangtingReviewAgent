@@ -11,6 +11,7 @@ export const SYSTEM_PROMPT = `你是一位专业的 A 股短线交易员，专�
 
 风格要求：
 - 专业、直接、有观点，避免空话套话；每个结论都要引用具体数据或个股。
+- 数据缺失时明确注明，不将缺失值视为零，不推测未提供的涨跌幅或平均涨幅。
 - 不做收益承诺，结尾加一句风险提示（股市有风险）。
 - 用 Markdown 输出，小标题用 ##，正文简洁，全文 800-1500 字。`;
 
@@ -37,29 +38,35 @@ export function buildMarketSummary(data: TradingDayData): string {
 
   // 总览
   const totalBoard = limitUp.length + brokenBoard.length;
-  const sealRate = totalBoard > 0 ? (limitUp.length / totalBoard) * 100 : 0;
+  const sealRate = totalBoard > 0 ? fmtPct((limitUp.length / totalBoard) * 100) : '不适用（无摸板样本）';
   lines.push(`## 总览
-- 涨停 ${limitUp.length} 家，炸板 ${brokenBoard.length} 家，封板成功率 ${fmtPct(sealRate)}
+- 涨停 ${limitUp.length} 家，炸板 ${brokenBoard.length} 家，封板成功率 ${sealRate}
 - 跌停 ${limitDown.length} 家
 - 连板股 ${limitUp.filter((s) => s.consecutiveBoards >= 2).length} 家，最高板 ${
     Math.max(0, ...limitUp.map((s) => s.consecutiveBoards))
   } 板`);
 
-  // 昨日涨停表现
+  // 晋级来自两个交易日的涨停池；涨跌幅只用可用的复盘日行情。
   if (prevDate && prevDayPerformance.length > 0) {
-    const valid = prevDayPerformance.filter((p) => !Number.isNaN(p.todayChangePct));
-    const avg = valid.reduce((a, b) => a + b.todayChangePct, 0) / (valid.length || 1);
-    const promoted = prevDayPerformance.filter((p) => p.promoted);
+    const valid = prevDayPerformance.flatMap(({ name, todayChangePct }) =>
+      todayChangePct !== null && Number.isFinite(todayChangePct) ? [{ name, change: todayChangePct }] : [],
+    );
+    const promoted = prevDayPerformance.filter((p) => p.promoted).length;
     const pd = `${prevDate.slice(0, 4)}-${prevDate.slice(4, 6)}-${prevDate.slice(6, 8)}`;
-    lines.push(`\n## 昨日（${pd}）涨停股今日表现
-- 昨日涨停 ${prevDayPerformance.length} 只，今日平均涨幅 ${fmtPct(avg)}
-- 晋级（今日再涨停）${promoted.length} 只，晋级率 ${fmtPct(
-      (promoted.length / prevDayPerformance.length) * 100,
+    lines.push(`\n## 上一交易日（${pd}）涨停股在复盘日的表现
+- 上一交易日涨停 ${prevDayPerformance.length} 只，复盘日再涨停 ${promoted} 只，晋级率 ${fmtPct(
+      (promoted / prevDayPerformance.length) * 100,
     )}
-- 今日跌幅超 -3%：${valid
-      .filter((p) => p.todayChangePct <= -3)
-      .map((p) => `${p.name}(${fmtPct(p.todayChangePct)})`)
-      .join('、') || '无'}`);
+- 涨跌幅行情覆盖 ${valid.length}/${prevDayPerformance.length} 只`);
+    if (data.prevDayQuoteWarning) lines.push(`- 行情说明：${data.prevDayQuoteWarning}`);
+    if (valid.length > 0) {
+      const avg = valid.reduce((sum, p) => sum + p.change, 0) / valid.length;
+      const losers = valid.filter((p) => p.change <= -3).map((p) => `${p.name}(${fmtPct(p.change)})`);
+      lines.push(`- 有行情样本的平均涨跌幅：${fmtPct(avg)}`);
+      lines.push(`- 有行情样本中涨跌幅 ≤ -3%：${losers.join('、') || '无'}`);
+    } else {
+      lines.push('- 缺少复盘日涨跌幅，无法计算平均涨跌幅或列出下跌个股');
+    }
   }
 
   // 涨停明细（按连板数降序，再按封板时间）

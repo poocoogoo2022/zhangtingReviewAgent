@@ -83,7 +83,7 @@ export interface LimitDownStock {
 export interface PrevDayPerformance {
   code: string;
   name: string;
-  todayChangePct: number; // 今日涨跌幅 %
+  todayChangePct: number | null; // 复盘日涨跌幅 %；无可用行情为 null
   promoted: boolean; // 今日是否再度涨停（晋级）
 }
 
@@ -95,6 +95,7 @@ export interface TradingDayData {
   brokenBoard: BrokenBoardStock[];
   limitDown: LimitDownStock[];
   prevDayPerformance: PrevDayPerformance[]; // 昨日涨停今日表现
+  prevDayQuoteWarning?: string; // 无法获取复盘日行情时保留晋级数据，并说明原因
 }
 
 /** 批量行情（push2 ulist） */

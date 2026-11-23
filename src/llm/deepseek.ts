@@ -29,7 +29,7 @@ export function loadConfigFromEnv(): DeepSeekConfig {
   const apiKey = process.env.DEEPSEEK_API_KEY;
   if (!apiKey) {
     throw new Error(
-      '缺少 DEEPSEEK_API_KEY。请复制 .env.example 为 .env 并填入你的 key（https://platform.deepseek.com/api_keys）',
+      '缺少 DEEPSEEK_API_KEY。请在项目根目录的 .env 中设置该变量（https://platform.deepseek.com/api_keys）',
     );
   }
   return {
