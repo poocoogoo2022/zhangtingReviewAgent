@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "source": "synthetic",
+  "capturedAt": "2025-11-21T07:30:00.000Z",
+  "data": {
+    "date": "20251121",
+    "prevDate": "20251120",
+    "limitUp": [
+      {
+        "code": "990001",
+        "market": 0,
+        "name": "样本甲",
+        "price": 11,
+        "changePct": 10,
+        "amount": 180000000,
+        "floatMarketCap": 2500000000,
+        "totalMarketCap": 3100000000,
+        "turnoverRate": 7.2,
+        "consecutiveBoards": 3,
+        "firstSealTime": "09:42:16",
+        "lastSealTime": "10:05:27",
+        "sealFund": 58000000,
+        "breakCount": 1,
+        "industry": "示例元件",
+        "statsDays": 3,
+        "statsCount": 3
+      },
+      {
+        "code": "990002",
+        "market": 0,
+        "name": "样本乙",
+        "price": 22,
+        "changePct": 10,
+        "amount": 90000000,
+        "floatMarketCap": 1800000000,
+        "totalMarketCap": 2200000000,
+        "turnoverRate": 5,
+        "consecutiveBoards": 1,
+        "firstSealTime": "10:31:04",
+        "lastSealTime": "10:31:04",
+        "sealFund": 24000000,
+        "breakCount": 0,
+        "industry": "示例元件",
+        "statsDays": 1,
+        "statsCount": 1
+      },
+      {
+        "code": "990003",
+        "market": 0,
+        "name": "样本丙",
+        "price": 16.5,
+        "changePct": 10,
+        "amount": 125000000,
+        "floatMarketCap": 2500000000,
+        "totalMarketCap": 3600000000,
+        "turnoverRate": 5,
+        "consecutiveBoards": 1,
+        "firstSealTime": "13:46:53",
+        "lastSealTime": "14:21:30",
+        "sealFund": 12000000,
+        "breakCount": 2,
+        "industry": "示例设备",
+        "statsDays": 1,
+        "statsCount": 1
+      }
+    ],
+    "brokenBoard": [
+      {
+        "code": "990004",
+        "market": 0,
+        "name": "样本丁",
+        "price": 14.4,
+        "changePct": -4,
+        "amount": 120000000,
+        "floatMarketCap": 1500000000,
+        "turnoverRate": 8,
+        "firstSealTime": "09:55:10",
+        "breakCount": 3,
+        "industry": "示例设备"
+      }
+    ],
+    "limitDown": [
+      {
+        "code": "990005",
+        "market": 0,
+        "name": "样本戊",
+        "price": 9,
+        "changePct": -10,
+        "amount": 40000000,
+        "floatMarketCap": 1000000000,
+        "turnoverRate": 4,
+        "industry": "示例零售"
+      }
+    ],
+    "prevDayPerformance": [
+      { "code": "990001", "name": "样本甲", "todayChangePct": 10, "promoted": true },
+      { "code": "990004", "name": "样本丁", "todayChangePct": -4, "promoted": false },
+      { "code": "990006", "name": "样本己", "todayChangePct": null, "promoted": false }
+    ],
+    "prevDayQuoteWarning": "样本己的涨跌幅设为缺失，以演示部分行情缺失时的统计口径。"
+  }
+}

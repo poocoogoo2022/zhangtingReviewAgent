@@ -4,6 +4,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { readMarketSnapshot } from '../dist/data/snapshot.js';
 import { buildMarketSummary } from '../dist/agent/prompt.js';
 
@@ -80,6 +81,19 @@ test('完整 CLI 保存快照；离线统计和模型重跑共用同一份输入
 
   success(cli('replay', '--snapshot', snapshotFile, '--no-save', '--out', dir));
   assert.deepEqual(await readdir(dir), entries);
+});
+
+test('仓库合成样本可离线运行，并明确标记为虚构行情', () => {
+  const file = fileURLToPath(new URL('../examples/synthetic-market.snapshot.json', import.meta.url));
+  const result = cli('offline', '--snapshot', file, '--raw');
+  success(result);
+  assert.match(result.stdout, /^> 合成行情演示：.*不代表真实盘面/);
+  assert.match(result.stdout, /涨停 3 家，炸板 1 家，封板成功率 75\.00%/);
+  assert.match(result.stdout, /跌停 1 家/);
+  assert.match(result.stdout, /\| 3 板 \| 1 \|/);
+  assert.match(result.stdout, /\| 示例元件 \| 2 \|/);
+  assert.match(result.stdout, /晋级率 33\.33%/);
+  assert.match(result.stdout, /涨跌幅行情覆盖 2\/3 只/);
 });
 
 test('未知版本、无效行情与冲突参数在任何网络请求前被拒绝', async (t) => {

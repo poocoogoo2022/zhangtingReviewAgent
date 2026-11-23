@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "tsx --env-file=.env src/index.ts",
     "build": "tsc",
+    "demo": "npm run build --silent && node dist/index.js --snapshot examples/synthetic-market.snapshot.json --raw",
     "start": "node --env-file=.env dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && node --test"

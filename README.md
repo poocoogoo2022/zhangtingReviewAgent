@@ -11,12 +11,20 @@ A 股涨停复盘 Agent：抓取东方财富涨停/炸板/跌停数据，调用 
 - **上一交易日涨停股追踪**：按两个交易日的涨停池计算晋级率；有复盘日行情时，另列样本平均涨跌幅和明显下跌的个股
 - **复盘报告**：TypeScript 计算并直接渲染总览、连板梯队、行业涨停分布和晋级统计；DeepSeek 在独立章节解读盘面、个股表现及下一交易日的观察点。行业采用东方财富的分类，不等同于概念题材。
 
-## 快速开始
+## 快速开始：免 Key 演示
+
+要求 Node.js 20 或更高版本。在仓库根目录运行：
 
 ```bash
-# 要求 Node.js >= 20
-npm install
+npm ci
+npm run demo
+```
 
+安装依赖后，`npm run demo` 会编译 TypeScript 并读取仓库内的[合成行情快照](examples/synthetic-market.snapshot.json)。它不需要 `.env`，不访问东方财富或 DeepSeek，也不保存报告。终端会显示 **3 家涨停、1 家炸板、1 家跌停**，以及行业分布、连板梯队和 **33.33%（1/3）** 的晋级率。样本中的个股、行业和数值均为虚构。
+
+## 生成真实复盘报告
+
+```bash
 # 用编辑器在项目根目录创建 .env，填入 DEEPSEEK_API_KEY=你的密钥
 # 申请地址：https://platform.deepseek.com/api_keys；不要提交 .env
 

@@ -3,7 +3,7 @@ import type { TradingDayData } from './types.js';
 
 export interface MarketSnapshot {
   schemaVersion: 1;
-  source: 'eastmoney';
+  source: 'eastmoney' | 'synthetic';
   capturedAt: string; // UTC, ISO 8601
   data: TradingDayData;
 }
@@ -69,7 +69,8 @@ function validatePool(name: string, value: unknown, validateFields: (row: Row) =
 
 function validateSnapshot(value: unknown): asserts value is MarketSnapshot {
   if (!isRow(value) || value.schemaVersion !== 1) throw new Error('不支持的行情快照版本：需要 schemaVersion=1');
-  if (value.source !== 'eastmoney' || !isCaptureTime(value.capturedAt) || !isRow(value.data)) {
+  if ((value.source !== 'eastmoney' && value.source !== 'synthetic')
+    || !isCaptureTime(value.capturedAt) || !isRow(value.data)) {
     throw new Error('行情快照缺少有效的来源、采集时间或行情数据');
   }
   const { date, prevDate, limitUp, brokenBoard, limitDown, prevDayPerformance, prevDayQuoteWarning } = value.data;

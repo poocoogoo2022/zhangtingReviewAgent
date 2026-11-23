@@ -51,7 +51,7 @@ export function buildMarketFacts(data: TradingDayData): string {
     lines.push('无涨停样本。');
   }
 
-  lines.push('', '## 行业涨停分布（东方财富行业分类，非概念题材）');
+  lines.push('', '## 行业涨停分布（按数据源行业标签，非概念题材）');
   if (rankedIndustries.length > 0) {
     lines.push('| 行业 | 涨停家数 | 涨停个股 |', '|---|---:|---|');
     for (const [industry, members] of rankedIndustries) {

@@ -92,8 +92,11 @@ async function main() {
   const snapshot = args.snapshot
     ? await readMarketSnapshot(args.snapshot)
     : await captureLiveSnapshot(args.date ?? todayCN());
-  const { data, capturedAt } = snapshot;
+  const { data, capturedAt, source } = snapshot;
   const { date } = data;
+  const sourceNotice = source === 'synthetic'
+    ? '> 合成行情演示：个股、行业和数据均为虚构，不代表真实盘面。\n\n'
+    : '';
   console.error(`📊 目标交易日: ${formatTradingDate(date)}`);
   if (args.snapshot) console.error(`📂 已载入快照，原始采集时间: ${capturedAt}`);
   console.error(
@@ -102,13 +105,14 @@ async function main() {
 
   // --raw 只打印数据摘要，不调用模型或落盘。
   if (args.raw) {
-    console.log(buildMarketSummary(data));
+    console.log(`${sourceNotice}${buildMarketSummary(data)}`);
     return;
   }
 
   // 调用 DeepSeek 生成复盘报告（流式输出到终端）
   const client = new DeepSeekClient(loadConfigFromEnv());
   console.error('🤖 DeepSeek 生成复盘中...\n');
+  if (sourceNotice) process.stdout.write(sourceNotice);
   const { report } = await runReview(client, data, (t) => process.stdout.write(t));
 
   // 5. 保存 Markdown 报告
@@ -119,7 +123,7 @@ async function main() {
     const snapshotFile = resolve(dir, 'market.snapshot.json');
     const reportFile = resolve(dir, `zt-review-${date}.md`);
     await writeMarketSnapshot(snapshotFile, snapshot);
-    await writeFile(reportFile, report, 'utf8');
+    await writeFile(reportFile, `${sourceNotice}${report}`, 'utf8');
     console.error(`\n💾 报告已保存: ${reportFile}`);
     console.error(`💾 行情快照已保存: ${snapshotFile}`);
   }
