@@ -1,3 +1,4 @@
+import { setDefaultResultOrder } from 'node:dns';
 import type {
   BrokenBoardStock,
   LimitDownStock,
@@ -22,26 +23,37 @@ const ENDPOINTS = {
   dt: 'getTopicDTPool', // 跌停池
 } as const;
 
+// 东财部分 IPv6 节点不稳定（偶发 socket reset），优先走 IPv4
+setDefaultResultOrder('ipv4first');
+
 type PoolKind = keyof typeof ENDPOINTS;
 
 async function fetchJson<T>(url: string): Promise<T> {
   let lastError: unknown;
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= 4; attempt++) {
     try {
       const res = await fetch(url, {
-        headers: { 'User-Agent': 'zhangtingReviewAgent/0.1' },
+        headers: {
+          'User-Agent': 'zhangtingReviewAgent/0.1',
+          Referer: 'https://quote.eastmoney.com/',
+          Connection: 'close', // 东财偶发重置复用连接，禁用 keep-alive
+        },
         signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`);
       return (await res.json()) as T;
     } catch (err) {
       lastError = err;
-      if (attempt < 3) {
-        await new Promise((r) => setTimeout(r, attempt * 1000)); // 1s, 2s 退避
+      if (attempt < 4) {
+        await sleep(attempt * 800 + Math.random() * 400); // 抖动退避
       }
     }
   }
   throw lastError;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 /** HHMMSS 数字 → "HH:MM:SS" */
@@ -175,16 +187,18 @@ export async function resolveTradingDate(date: string): Promise<string | null> {
  * 涨停池 + 炸板池 + 跌停池 + 昨日涨停股今日表现（晋级率/溢价）。
  */
 export async function collectTradingDayData(date: string): Promise<TradingDayData> {
-  const [limitUp, brokenBoard, limitDown] = await Promise.all([
-    fetchPool('zt', date),
-    fetchPool('zb', date),
-    fetchPool('dt', date),
-  ]);
+  // 串行抓取：东财对高频并发连接会重置 socket
+  const limitUp = await fetchPool('zt', date);
+  await sleep(300);
+  const brokenBoard = await fetchPool('zb', date);
+  await sleep(300);
+  const limitDown = await fetchPool('dt', date);
 
   // 找上一交易日（有涨停池数据即视为交易日）
   let prevDate: string | null = null;
   let prevPool: LimitUpStock[] = [];
   for (let i = 1; i <= MAX_LOOKBACK_DAYS; i++) {
+    await sleep(300);
     const d = shiftDate(date, -i);
     const pool = await fetchPool('zt', d);
     if (pool.length > 0) {
