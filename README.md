@@ -31,16 +31,34 @@ npm run build
 node dist/index.js --raw
 ```
 
-生成的报告默认保存到 `reports/zt-review-YYYYMMDD.md`。
+### 保存和重跑
+
+每次生成报告，CLI 都会在 `reports/`（或 `--out` 指定的目录）下创建独立的 `YYYYMMDD-<随机后缀>/` 子目录，不覆盖旧结果。目录中有两个文件：
+
+- `zt-review-YYYYMMDD.md`：复盘报告。
+- `market.snapshot.json`：带 `schemaVersion`、数据来源、UTC 采集时间和归一化行情的 JSON，不包含 API Key。
+
+把下方路径换成 CLI 输出的实际快照路径：
+
+```bash
+# 完全离线：查看同一份行情统计，无须 .env
+node dist/index.js --snapshot reports/20261120-abc123/market.snapshot.json --raw
+
+# 不重新采集行情，调用 DeepSeek 生成新版解读；旧报告和快照保留
+npm run dev -- --snapshot reports/20261120-abc123/market.snapshot.json
+```
+
+快照固定的是行情输入，不保证模型逐字复现原报告。重跑会保留原始采集时间；不支持的快照版本或无效字段会在调用模型前报错。
 
 ### 全部参数
 
 | 参数 | 说明 |
 |---|---|
 | `--date YYYYMMDD` | 指定交易日（默认今天，自动回退到最近交易日） |
-| `--out <目录>` | 报告输出目录（默认 `reports/`） |
-| `--no-save` | 只在终端流式输出，不保存文件 |
-| `--raw` | 只输出盘面数据摘要，不调用大模型 |
+| `--snapshot <文件>` | 从本地快照重跑，不访问东方财富；不能与 `--date` 同用 |
+| `--out <目录>` | 报告和快照的父目录（默认 `reports/`） |
+| `--no-save` | 只在终端流式输出，不保存报告或快照 |
+| `--raw` | 只输出盘面数据摘要，不调用大模型、不保存文件 |
 
 ### 环境变量
 
@@ -58,7 +76,8 @@ src/
 ├── index.ts            # CLI 入口：参数解析、流程编排、报告落盘
 ├── data/
 │   ├── types.ts        # 归一化后的领域类型
-│   └── eastmoney.ts    # 东财接口客户端（涨停/炸板/跌停池、批量行情、交易日回退、重试）
+│   ├── eastmoney.ts    # 东财接口客户端（涨停/炸板/跌停池、批量行情、交易日回退、重试）
+│   └── snapshot.ts     # 带版本号的行情快照读写和校验
 ├── llm/
 │   └── deepseek.ts     # DeepSeek 客户端（OpenAI 兼容协议，支持 SSE 流式）
 └── agent/
