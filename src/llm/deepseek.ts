@@ -8,9 +8,10 @@ export interface ChatMessage {
   content: string;
 }
 
+const CHAT_COMPLETIONS_URL = 'https://api.deepseek.com/chat/completions';
+
 export interface DeepSeekConfig {
   apiKey: string;
-  baseUrl: string;
   model: string;
   temperature?: number;
   maxTokens?: number;
@@ -34,7 +35,6 @@ export function loadConfigFromEnv(): DeepSeekConfig {
   }
   return {
     apiKey,
-    baseUrl: process.env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com',
     model: process.env.DEEPSEEK_MODEL ?? 'deepseek-chat',
   };
 }
@@ -85,9 +85,10 @@ export class DeepSeekClient {
   }
 
   private async request(messages: ChatMessage[], stream: boolean): Promise<Response> {
-    const { apiKey, baseUrl, model, temperature = 0.3, maxTokens = 4096 } = this.config;
-    const res = await fetch(`${baseUrl}/chat/completions`, {
+    const { apiKey, model, temperature = 0.3, maxTokens = 4096 } = this.config;
+    const res = await fetch(CHAT_COMPLETIONS_URL, {
       method: 'POST',
+      redirect: 'error',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,

@@ -12,7 +12,7 @@
     "build": "tsc",
     "start": "node --env-file=.env dist/index.js",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test test/review-data.test.mjs"
+    "test": "npm run build && node --test"
   },
   "engines": {
     "node": ">=20"

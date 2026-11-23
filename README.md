@@ -47,8 +47,9 @@ node dist/index.js --raw
 | 变量 | 默认值 | 说明 |
 |---|---|---|
 | `DEEPSEEK_API_KEY` | （必填） | DeepSeek API Key |
-| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | 接口地址 |
 | `DEEPSEEK_MODEL` | `deepseek-chat` | 模型（也可填 `deepseek-reasoner`） |
+
+客户端只请求 DeepSeek 官方 HTTPS 端点 `https://api.deepseek.com/chat/completions`，且不跟随重定向。旧配置中的 `DEEPSEEK_BASE_URL` 不再生效，可从 `.env` 删除。
 
 ## 架构
 
