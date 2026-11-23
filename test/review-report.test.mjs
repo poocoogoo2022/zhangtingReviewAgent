@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { buildMarketFacts } from '../dist/agent/facts.js';
+import { fileURLToPath } from 'node:url';
+import { buildMarketFacts, formatTradingDate } from '../dist/agent/facts.js';
+import { readMarketSnapshot } from '../dist/data/snapshot.js';
 import { buildMarketSummary } from '../dist/agent/prompt.js';
 import { runReview } from '../dist/agent/review.js';
 
@@ -69,6 +72,21 @@ test('模型收到同一份统计；流式输出与最终 Markdown 内容一致'
   assert.equal(result.report, `# 2026-11-20 涨停复盘\n\n${facts}\n\n## DeepSeek 解读\n\n${analysis}\n`);
   assert.equal(chunks.join(''), result.report);
   assert.deepEqual(await runReview(client, data), result);
+});
+
+test('完整示例报告的事实区与合成快照计算结果一致', async () => {
+  const snapshotFile = fileURLToPath(new URL('../examples/synthetic-market.snapshot.json', import.meta.url));
+  const { data, source } = await readMarketSnapshot(snapshotFile);
+  const sample = await readFile(new URL('../examples/sample-report.md', import.meta.url), 'utf8');
+  const report = sample.replaceAll('\r\n', '\n');
+  const factsStart = report.indexOf('\n## 总览\n');
+  const analysisStart = report.indexOf('\n## 解读（静态示例）\n');
+
+  assert.equal(source, 'synthetic');
+  assert.ok(report.startsWith(`# ${formatTradingDate(data.date)} 涨停复盘（合成示例）\n`));
+  assert.match(report, /不代表真实盘面.*未调用 DeepSeek/);
+  assert.ok(factsStart >= 0 && analysisStart > factsStart);
+  assert.equal(report.slice(factsStart, analysisStart).trim(), buildMarketFacts(data));
 });
 
 test('流式响应未生成有效解读时不返回成功报告', async () => {

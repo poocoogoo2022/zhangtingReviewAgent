@@ -22,6 +22,8 @@ npm run demo
 
 安装依赖后，`npm run demo` 会编译 TypeScript 并读取仓库内的[合成行情快照](examples/synthetic-market.snapshot.json)。它不需要 `.env`，不访问东方财富或 DeepSeek，也不保存报告。终端会显示 **3 家涨停、1 家炸板、1 家跌停**，以及行业分布、连板梯队和 **33.33%（1/3）** 的晋级率。样本中的个股、行业和数值均为虚构。
 
+**[直接查看完整示例报告](examples/sample-report.md)**：无需安装或配置。报告的统计来自同一份合成快照，解读为静态示例，用于展示最终 Markdown 格式，不是 DeepSeek 的真实输出。
+
 ## 生成真实复盘报告
 
 ```bash
